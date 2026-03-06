@@ -10,7 +10,6 @@ import requests
 from bs4 import BeautifulSoup
 
 app = Flask(__name__)
-# CORS zaroori hai Vercel se connect karne ke liye
 CORS(app)
 
 # ==========================================
@@ -55,18 +54,15 @@ def summarize():
         # 2. YOUTUBE MODE (With Smart Fallback)
         elif mode == 'youtube':
             try:
-                # Video ID nikalna
                 parsed_url = urlparse.urlparse(content)
                 video_id = urlparse.parse_qs(parsed_url.query).get('v')
                 if not video_id:
                     video_id = content.split('v=')[-1].split('&')[0].split('?')[0].split('/')[-1]
                 
-                # Pehle Subtitles try karenge
                 transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
                 text_for_ai = " ".join([d['text'] for d in transcript_list])
                 
             except Exception:
-                # Fallback: Agar subtitles nahi hain, toh Title aur Description nikalenge
                 try:
                     ydl_opts = {'quiet': True, 'skip_download': True}
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -75,7 +71,7 @@ def summarize():
                         desc = info.get('description', '')
                         text_for_ai = f"Video Title: {title}\n\nVideo Description: {desc}\n\nMake notes based on this information."
                 except Exception:
-                    return jsonify({'status': 'error', 'error': 'Is video ka data private hai ya link galat hai. AI isko nahi padh sakta.'})
+                    return jsonify({'status': 'error', 'error': 'Is video ka data private hai. AI isko nahi padh sakta.'})
 
         # 3. URL/WEBSITE MODE
         elif mode == 'url':
@@ -99,9 +95,9 @@ def summarize():
             except Exception:
                 return jsonify({'status': 'error', 'error': 'PDF padhne mein error aayi. Shayad file locked hai.'})
 
-        # 5. CAMERA / IMAGE MODE (Disabled for Grok Text API)
+        # 5. CAMERA / IMAGE MODE 
         elif mode == 'image':
-            return jsonify({'status': 'error', 'error': 'Image scan feature abhi Grok ke text server par maintainance mein hai. Kripya PDF ya Topic ka use karein.'})
+            return jsonify({'status': 'error', 'error': 'Image mode abhi maintainance mein hai. Kripya PDF ya Topic try karein.'})
 
         # ==========================================
         # FINAL STEP: Send Data to Grok AI
@@ -121,7 +117,7 @@ def summarize():
 
     except Exception as e:
         print(f"Server Error: {str(e)}")
-        return jsonify({'status': 'error', 'error': f'Server Error: API key missing ya server overload ho gaya hai.'})
+        return jsonify({'status': 'error', 'error': f'Server Error: API key missing ya invalid ho sakti hai.'})
 
 
 @app.route('/api/chat', methods=['POST'])
