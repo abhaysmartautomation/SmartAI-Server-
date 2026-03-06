@@ -1,7 +1,8 @@
 Flask==3.0.0
 flask-cors==4.0.0
-google-generativeai
+openai
 youtube-transcript-api
+yt-dlp
 PyPDF2
 beautifulsoup4
 requests
