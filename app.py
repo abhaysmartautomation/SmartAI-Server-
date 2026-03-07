@@ -1,7 +1,7 @@
 import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from openai import OpenAI
+import google.generativeai as genai
 from youtube_transcript_api import YouTubeTranscriptApi
 import yt_dlp
 import urllib.parse as urlparse
@@ -13,17 +13,15 @@ app = Flask(__name__)
 CORS(app)
 
 # ==========================================
-# 🟢 GROK API SETUP (Crash-Proof) 🟢
+# 🟢 GEMINI API SETUP (100% Free & Fast) 🟢
 # ==========================================
-API_KEY = os.environ.get("GROK_API_KEY", "")
+API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
-client = OpenAI(
-    api_key=API_KEY if API_KEY else "dummy_key_to_prevent_crash",
-    base_url="https://api.x.ai/v1",
-)
+if API_KEY:
+    genai.configure(api_key=API_KEY)
 
-# 🎯 YAHI THA ASLI CHOR! Naya model name update kar diya hai:
-GROK_MODEL = "grok-2-latest" 
+# Gemini ka sabse fast model jo notes ke liye best hai
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 MASTER_PROMPT = """
 You are 'SmartAI Tutor', an expert teacher. Create highly engaging, topper-level study notes based ONLY on the provided content. 
@@ -38,12 +36,12 @@ Do not make up facts. If the content is short, explain it simply.
 
 @app.route('/')
 def home():
-    return "SmartAI (Grok Edition) Server is Awake and Running 100%!"
+    return "SmartAI (Gemini Free Edition) Server is Awake and Running 100%!"
 
 @app.route('/api/summarize', methods=['POST'])
 def summarize():
-    if not API_KEY or API_KEY == "dummy_key_to_prevent_crash":
-        return jsonify({'status': 'error', 'error': 'Render Dashboard par GROK_API_KEY set nahi hai!'})
+    if not API_KEY:
+        return jsonify({'status': 'error', 'error': 'Render Dashboard par GEMINI_API_KEY set nahi hai!'})
 
     try:
         mode = request.form.get('mode')
@@ -96,37 +94,28 @@ def summarize():
                 return jsonify({'status': 'error', 'error': 'PDF padhne mein error aayi.'})
 
         elif mode == 'image':
-            return jsonify({'status': 'error', 'error': 'Image mode abhi Grok ke text server par maintainance mein hai. Kripya PDF ya Topic try karein.'})
+            return jsonify({'status': 'error', 'error': 'Image mode abhi maintainance mein hai. Kripya PDF ya Topic try karein.'})
 
         # ==========================================
-        # FINAL STEP: Send Data to Grok AI
+        # FINAL STEP: Send Data to Gemini AI
         # ==========================================
         if text_for_ai and text_for_ai.strip() != "":
-            response = client.chat.completions.create(
-                model=GROK_MODEL,
-                messages=[
-                    {"role": "system", "content": MASTER_PROMPT},
-                    {"role": "user", "content": f"Here is the content to summarize:\n{text_for_ai[:30000]}"}
-                ]
-            )
-            summary = response.choices[0].message.content
-            return jsonify({'status': 'success', 'summary': summary})
+            final_prompt = MASTER_PROMPT + "\n\nContent:\n" + text_for_ai[:30000]
+            response = model.generate_content(final_prompt)
+            return jsonify({'status': 'success', 'summary': response.text})
         else:
             return jsonify({'status': 'error', 'error': 'Mujhe padhne ke liye kuch text nahi mila!'})
 
     except Exception as e:
         error_msg = str(e)
-        print(f"Grok API Error: {error_msg}")
-        if "401" in error_msg or "api_key" in error_msg.lower():
-            return jsonify({'status': 'error', 'error': 'Grok API Key invalid hai. Render par apni key theek se dobara paste karein.'})
-        elif "model" in error_msg.lower():
-            return jsonify({'status': 'error', 'error': 'Grok Model naam change ho gaya hai ya credit limit khatam ho gayi hai.'})
-        return jsonify({'status': 'error', 'error': 'AI abhi busy hai ya server error hai. Thodi der me try karein.'})
-
+        print(f"Gemini API Error: {error_msg}")
+        if "API_KEY_INVALID" in error_msg:
+            return jsonify({'status': 'error', 'error': 'Gemini API Key galat hai.'})
+        return jsonify({'status': 'error', 'error': 'AI abhi busy hai. Thodi der me try karein.'})
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
-    if not API_KEY or API_KEY == "dummy_key_to_prevent_crash":
+    if not API_KEY:
         return jsonify({'status': 'error', 'error': 'API Key Missing!'})
 
     try:
@@ -139,15 +128,8 @@ def chat():
 
         chat_prompt = f"Context Notes: {context}\n\nStudent's Doubt: {question}\n\nAnswer the student's doubt clearly and politely in Hinglish or English based on the context provided."
         
-        response = client.chat.completions.create(
-            model=GROK_MODEL,
-            messages=[
-                {"role": "system", "content": "You are a helpful AI tutor."},
-                {"role": "user", "content": chat_prompt}
-            ]
-        )
-        answer = response.choices[0].message.content
-        return jsonify({'status': 'success', 'answer': answer})
+        response = model.generate_content(chat_prompt)
+        return jsonify({'status': 'success', 'answer': response.text})
 
     except Exception as e:
         print(f"Chat Error: {str(e)}")
