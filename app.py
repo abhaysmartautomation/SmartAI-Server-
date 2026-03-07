@@ -10,13 +10,11 @@ import requests
 from bs4 import BeautifulSoup
 
 app = Flask(__name__)
-# CORS zaroori hai Vercel se connect karne ke liye
 CORS(app)
 
 # ==========================================
 # 🟢 GROK API SETUP (Crash-Proof) 🟢
 # ==========================================
-# Render se key nikalenge. Agar nahi mili toh server crash hone se bachane ke liye "dummy" dalenge
 API_KEY = os.environ.get("GROK_API_KEY", "")
 
 client = OpenAI(
@@ -24,7 +22,8 @@ client = OpenAI(
     base_url="https://api.x.ai/v1",
 )
 
-GROK_MODEL = "grok-beta"
+# 🎯 YAHI THA ASLI CHOR! Naya model name update kar diya hai:
+GROK_MODEL = "grok-2-latest" 
 
 MASTER_PROMPT = """
 You are 'SmartAI Tutor', an expert teacher. Create highly engaging, topper-level study notes based ONLY on the provided content. 
@@ -43,9 +42,8 @@ def home():
 
 @app.route('/api/summarize', methods=['POST'])
 def summarize():
-    # 🚨 SECURITY CHECK: Agar Render par key nahi hai, toh yahi rok do
     if not API_KEY or API_KEY == "dummy_key_to_prevent_crash":
-        return jsonify({'status': 'error', 'error': 'Render Dashboard par GROK_API_KEY set nahi hai! Kripya Environment tab me key dalein.'})
+        return jsonify({'status': 'error', 'error': 'Render Dashboard par GROK_API_KEY set nahi hai!'})
 
     try:
         mode = request.form.get('mode')
@@ -53,11 +51,9 @@ def summarize():
         
         text_for_ai = ""
 
-        # 1. TOPIC & TEXT MODE
         if mode in ['topic', 'text']:
             text_for_ai = content
 
-        # 2. YOUTUBE MODE (With Smart Fallback)
         elif mode == 'youtube':
             try:
                 parsed_url = urlparse.urlparse(content)
@@ -69,7 +65,6 @@ def summarize():
                 text_for_ai = " ".join([d['text'] for d in transcript_list])
                 
             except Exception:
-                # Fallback: Subtitles na hone par Title aur Description nikalna
                 try:
                     ydl_opts = {'quiet': True, 'skip_download': True}
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -80,7 +75,6 @@ def summarize():
                 except Exception:
                     return jsonify({'status': 'error', 'error': 'Is video ka data private hai ya CC nahi hai. AI isko nahi padh sakta.'})
 
-        # 3. URL/WEBSITE MODE
         elif mode == 'url':
             try:
                 res = requests.get(content, headers={'User-Agent': 'Mozilla/5.0'})
@@ -90,7 +84,6 @@ def summarize():
             except Exception:
                 return jsonify({'status': 'error', 'error': 'Website ki security ne data nikalne se rok diya hai.'})
 
-        # 4. PDF FILE MODE
         elif mode == 'file':
             if 'file' not in request.files:
                 return jsonify({'status': 'error', 'error': 'No file uploaded'})
@@ -100,9 +93,8 @@ def summarize():
                 for page in pdf_reader.pages:
                     text_for_ai += page.extract_text() + "\n"
             except Exception:
-                return jsonify({'status': 'error', 'error': 'PDF padhne mein error aayi. Shayad file locked hai.'})
+                return jsonify({'status': 'error', 'error': 'PDF padhne mein error aayi.'})
 
-        # 5. CAMERA / IMAGE MODE 
         elif mode == 'image':
             return jsonify({'status': 'error', 'error': 'Image mode abhi Grok ke text server par maintainance mein hai. Kripya PDF ya Topic try karein.'})
 
@@ -110,7 +102,6 @@ def summarize():
         # FINAL STEP: Send Data to Grok AI
         # ==========================================
         if text_for_ai and text_for_ai.strip() != "":
-            # API Call
             response = client.chat.completions.create(
                 model=GROK_MODEL,
                 messages=[
@@ -128,6 +119,8 @@ def summarize():
         print(f"Grok API Error: {error_msg}")
         if "401" in error_msg or "api_key" in error_msg.lower():
             return jsonify({'status': 'error', 'error': 'Grok API Key invalid hai. Render par apni key theek se dobara paste karein.'})
+        elif "model" in error_msg.lower():
+            return jsonify({'status': 'error', 'error': 'Grok Model naam change ho gaya hai ya credit limit khatam ho gayi hai.'})
         return jsonify({'status': 'error', 'error': 'AI abhi busy hai ya server error hai. Thodi der me try karein.'})
 
 
@@ -156,7 +149,8 @@ def chat():
         answer = response.choices[0].message.content
         return jsonify({'status': 'success', 'answer': answer})
 
-    except Exception:
+    except Exception as e:
+        print(f"Chat Error: {str(e)}")
         return jsonify({'status': 'error', 'error': 'Chat bot abhi busy hai.'})
 
 if __name__ == '__main__':
