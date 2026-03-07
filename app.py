@@ -20,8 +20,8 @@ API_KEY = os.environ.get("GEMINI_API_KEY", "")
 if API_KEY:
     genai.configure(api_key=API_KEY)
 
-# Gemini ka sabse fast model jo notes ke liye best hai
-model = genai.GenerativeModel('gemini-1.5-flash')
+# 🎯 YAHAN FIX KIYA HAI: Google ka sabse stable aur latest free model
+model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
 MASTER_PROMPT = """
 You are 'SmartAI Tutor', an expert teacher. Create highly engaging, topper-level study notes based ONLY on the provided content. 
@@ -111,7 +111,7 @@ def summarize():
         print(f"Gemini API Error: {error_msg}")
         if "API_KEY_INVALID" in error_msg:
             return jsonify({'status': 'error', 'error': 'Gemini API Key galat hai.'})
-        return jsonify({'status': 'error', 'error': 'AI abhi busy hai. Thodi der me try karein.'})
+        return jsonify({'status': 'error', 'error': 'AI abhi busy hai ya model naam update ho raha hai. Thodi der me try karein.'})
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
