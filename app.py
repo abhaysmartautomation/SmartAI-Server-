@@ -1,7 +1,7 @@
 import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from google import genai # 👈 Naya Google Package
+from google import genai
 from youtube_transcript_api import YouTubeTranscriptApi
 import yt_dlp
 import urllib.parse as urlparse
@@ -17,13 +17,12 @@ CORS(app)
 # ==========================================
 API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
-# Naya Client Setup
 client = None
 if API_KEY:
     client = genai.Client(api_key=API_KEY)
 
-# Naya Model Name
-GEMINI_MODEL = 'gemini-2.0-flash'
+# 🎯 EXPERT FIX: Sabse stable aur fully FREE model lagaya hai (1 Million tokens free)
+GEMINI_MODEL = 'gemini-1.5-flash'
 
 MASTER_PROMPT = """
 You are 'SmartAI Tutor', an expert teacher. Create highly engaging, topper-level study notes based ONLY on the provided content. 
@@ -38,7 +37,7 @@ Do not make up facts. If the content is short, explain it simply.
 
 @app.route('/')
 def home():
-    return "SmartAI (New Gemini GenAI Edition) Server is Awake and Running 100%!"
+    return "SmartAI Server is Awake and Running 100%!"
 
 @app.route('/api/summarize', methods=['POST'])
 def summarize():
@@ -48,7 +47,6 @@ def summarize():
     try:
         mode = request.form.get('mode')
         content = request.form.get('content', '')
-        
         text_for_ai = ""
 
         if mode in ['topic', 'text']:
@@ -63,7 +61,6 @@ def summarize():
                 
                 transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
                 text_for_ai = " ".join([d['text'] for d in transcript_list])
-                
             except Exception:
                 try:
                     ydl_opts = {'quiet': True, 'skip_download': True}
@@ -99,12 +96,11 @@ def summarize():
             return jsonify({'status': 'error', 'error': 'Image mode abhi maintainance mein hai.'})
 
         # ==========================================
-        # FINAL STEP: Send Data to New Gemini AI
+        # FINAL STEP: Send Data to API
         # ==========================================
         if text_for_ai and text_for_ai.strip() != "":
             final_prompt = MASTER_PROMPT + "\n\nContent:\n" + text_for_ai[:30000]
             
-            # Naya API Call Syntax
             response = client.models.generate_content(
                 model=GEMINI_MODEL,
                 contents=final_prompt,
@@ -116,6 +112,8 @@ def summarize():
     except Exception as e:
         error_msg = str(e)
         print(f"Gemini API Error: {error_msg}")
+        if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+            return jsonify({'status': 'error', 'error': 'Google ne aapki API Key limit 0 kar di hai. Kripya kisi normal personal Gmail account se nayi key banayein.'})
         return jsonify({'status': 'error', 'error': 'AI API ne error diya hai. Shayad rate limit cross ho gayi.'})
 
 @app.route('/api/chat', methods=['POST'])
