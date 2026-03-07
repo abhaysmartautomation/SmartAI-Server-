@@ -10,15 +10,17 @@ import requests
 from bs4 import BeautifulSoup
 
 app = Flask(__name__)
+# CORS zaroori hai Vercel se connect karne ke liye
 CORS(app)
 
 # ==========================================
-# 🟢 GROK API SETUP 🟢
+# 🟢 GROK API SETUP (Crash-Proof) 🟢
 # ==========================================
-API_KEY = os.environ.get("GROK_API_KEY") 
+# Render se key nikalenge. Agar nahi mili toh server crash hone se bachane ke liye "dummy" dalenge
+API_KEY = os.environ.get("GROK_API_KEY", "")
 
 client = OpenAI(
-    api_key=API_KEY,
+    api_key=API_KEY if API_KEY else "dummy_key_to_prevent_crash",
     base_url="https://api.x.ai/v1",
 )
 
@@ -41,6 +43,10 @@ def home():
 
 @app.route('/api/summarize', methods=['POST'])
 def summarize():
+    # 🚨 SECURITY CHECK: Agar Render par key nahi hai, toh yahi rok do
+    if not API_KEY or API_KEY == "dummy_key_to_prevent_crash":
+        return jsonify({'status': 'error', 'error': 'Render Dashboard par GROK_API_KEY set nahi hai! Kripya Environment tab me key dalein.'})
+
     try:
         mode = request.form.get('mode')
         content = request.form.get('content', '')
@@ -63,6 +69,7 @@ def summarize():
                 text_for_ai = " ".join([d['text'] for d in transcript_list])
                 
             except Exception:
+                # Fallback: Subtitles na hone par Title aur Description nikalna
                 try:
                     ydl_opts = {'quiet': True, 'skip_download': True}
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -71,7 +78,7 @@ def summarize():
                         desc = info.get('description', '')
                         text_for_ai = f"Video Title: {title}\n\nVideo Description: {desc}\n\nMake notes based on this information."
                 except Exception:
-                    return jsonify({'status': 'error', 'error': 'Is video ka data private hai. AI isko nahi padh sakta.'})
+                    return jsonify({'status': 'error', 'error': 'Is video ka data private hai ya CC nahi hai. AI isko nahi padh sakta.'})
 
         # 3. URL/WEBSITE MODE
         elif mode == 'url':
@@ -97,12 +104,13 @@ def summarize():
 
         # 5. CAMERA / IMAGE MODE 
         elif mode == 'image':
-            return jsonify({'status': 'error', 'error': 'Image mode abhi maintainance mein hai. Kripya PDF ya Topic try karein.'})
+            return jsonify({'status': 'error', 'error': 'Image mode abhi Grok ke text server par maintainance mein hai. Kripya PDF ya Topic try karein.'})
 
         # ==========================================
         # FINAL STEP: Send Data to Grok AI
         # ==========================================
         if text_for_ai and text_for_ai.strip() != "":
+            # API Call
             response = client.chat.completions.create(
                 model=GROK_MODEL,
                 messages=[
@@ -116,12 +124,18 @@ def summarize():
             return jsonify({'status': 'error', 'error': 'Mujhe padhne ke liye kuch text nahi mila!'})
 
     except Exception as e:
-        print(f"Server Error: {str(e)}")
-        return jsonify({'status': 'error', 'error': f'Server Error: API key missing ya invalid ho sakti hai.'})
+        error_msg = str(e)
+        print(f"Grok API Error: {error_msg}")
+        if "401" in error_msg or "api_key" in error_msg.lower():
+            return jsonify({'status': 'error', 'error': 'Grok API Key invalid hai. Render par apni key theek se dobara paste karein.'})
+        return jsonify({'status': 'error', 'error': 'AI abhi busy hai ya server error hai. Thodi der me try karein.'})
 
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
+    if not API_KEY or API_KEY == "dummy_key_to_prevent_crash":
+        return jsonify({'status': 'error', 'error': 'API Key Missing!'})
+
     try:
         data = request.get_json()
         context = data.get('context', '')
