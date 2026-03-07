@@ -1,7 +1,7 @@
 import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import google.generativeai as genai
+from google import genai # 👈 Naya Google Package
 from youtube_transcript_api import YouTubeTranscriptApi
 import yt_dlp
 import urllib.parse as urlparse
@@ -13,15 +13,17 @@ app = Flask(__name__)
 CORS(app)
 
 # ==========================================
-# 🟢 GEMINI API SETUP (100% Free & Fast) 🟢
+# 🟢 NAYA GEMINI API SETUP (google-genai) 🟢
 # ==========================================
 API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
+# Naya Client Setup
+client = None
 if API_KEY:
-    genai.configure(api_key=API_KEY)
+    client = genai.Client(api_key=API_KEY)
 
-# 🎯 YAHAN FIX KIYA HAI: Google ka sabse stable aur latest free model
-model = genai.GenerativeModel('gemini-1.5-flash-latest')
+# Naya Model Name
+GEMINI_MODEL = 'gemini-2.0-flash'
 
 MASTER_PROMPT = """
 You are 'SmartAI Tutor', an expert teacher. Create highly engaging, topper-level study notes based ONLY on the provided content. 
@@ -36,11 +38,11 @@ Do not make up facts. If the content is short, explain it simply.
 
 @app.route('/')
 def home():
-    return "SmartAI (Gemini Free Edition) Server is Awake and Running 100%!"
+    return "SmartAI (New Gemini GenAI Edition) Server is Awake and Running 100%!"
 
 @app.route('/api/summarize', methods=['POST'])
 def summarize():
-    if not API_KEY:
+    if not client:
         return jsonify({'status': 'error', 'error': 'Render Dashboard par GEMINI_API_KEY set nahi hai!'})
 
     try:
@@ -71,7 +73,7 @@ def summarize():
                         desc = info.get('description', '')
                         text_for_ai = f"Video Title: {title}\n\nVideo Description: {desc}\n\nMake notes based on this information."
                 except Exception:
-                    return jsonify({'status': 'error', 'error': 'Is video ka data private hai ya CC nahi hai. AI isko nahi padh sakta.'})
+                    return jsonify({'status': 'error', 'error': 'Is video ka data private hai ya CC nahi hai.'})
 
         elif mode == 'url':
             try:
@@ -94,14 +96,19 @@ def summarize():
                 return jsonify({'status': 'error', 'error': 'PDF padhne mein error aayi.'})
 
         elif mode == 'image':
-            return jsonify({'status': 'error', 'error': 'Image mode abhi maintainance mein hai. Kripya PDF ya Topic try karein.'})
+            return jsonify({'status': 'error', 'error': 'Image mode abhi maintainance mein hai.'})
 
         # ==========================================
-        # FINAL STEP: Send Data to Gemini AI
+        # FINAL STEP: Send Data to New Gemini AI
         # ==========================================
         if text_for_ai and text_for_ai.strip() != "":
             final_prompt = MASTER_PROMPT + "\n\nContent:\n" + text_for_ai[:30000]
-            response = model.generate_content(final_prompt)
+            
+            # Naya API Call Syntax
+            response = client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=final_prompt,
+            )
             return jsonify({'status': 'success', 'summary': response.text})
         else:
             return jsonify({'status': 'error', 'error': 'Mujhe padhne ke liye kuch text nahi mila!'})
@@ -109,13 +116,11 @@ def summarize():
     except Exception as e:
         error_msg = str(e)
         print(f"Gemini API Error: {error_msg}")
-        if "API_KEY_INVALID" in error_msg:
-            return jsonify({'status': 'error', 'error': 'Gemini API Key galat hai.'})
-        return jsonify({'status': 'error', 'error': 'AI abhi busy hai ya model naam update ho raha hai. Thodi der me try karein.'})
+        return jsonify({'status': 'error', 'error': 'AI API ne error diya hai. Shayad rate limit cross ho gayi.'})
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
-    if not API_KEY:
+    if not client:
         return jsonify({'status': 'error', 'error': 'API Key Missing!'})
 
     try:
@@ -128,7 +133,10 @@ def chat():
 
         chat_prompt = f"Context Notes: {context}\n\nStudent's Doubt: {question}\n\nAnswer the student's doubt clearly and politely in Hinglish or English based on the context provided."
         
-        response = model.generate_content(chat_prompt)
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=chat_prompt,
+        )
         return jsonify({'status': 'success', 'answer': response.text})
 
     except Exception as e:
